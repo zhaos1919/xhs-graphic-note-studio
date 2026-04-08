@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>小红书图文创作台</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --line: #dbe3ef;
+      --text: #1f2430;
+      --muted: #677489;
+      --primary: #0f62fe;
+      --primary-dark: #0a4ecb;
+      --chip: #edf3ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top right, #e8f0ff 0, #f4f7fb 45%, #eef3f9 100%);
+      color: var(--text);
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .wrap {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 30px 20px;
+    }
+    .hero {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 22px 20px;
+      box-shadow: 0 12px 28px rgba(16, 24, 40, 0.06);
+      margin-bottom: 16px;
+    }
+    .hero h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      line-height: 1.15;
+    }
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.8;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      display: grid;
+      gap: 10px;
+      box-shadow: 0 8px 24px rgba(16, 24, 40, 0.04);
+    }
+    .type {
+      display: inline-block;
+      background: var(--chip);
+      color: #2554b8;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      width: fit-content;
+    }
+    h2 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.3;
+    }
+    .desc {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+      min-height: 44px;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .btn {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      font-size: 14px;
+      padding: 10px 14px;
+      border: 1px solid #cfd8e7;
+      color: #233247;
+      background: #fff;
+    }
+    .btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .btn.primary:hover { background: var(--primary-dark); }
+    .foot {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    @media (max-width: 960px) {
+      .grid { grid-template-columns: 1fr; }
+      .hero h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>小红书图文创作台</h1>
+      <p>把封面制作和正文制作放在同一个入口：先选模块，再进入对应工具。这样结构清晰、维护方便，也避免把复杂正文参数塞进封面傻瓜页。</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <span class="type">封面</span>
+        <h2>傻瓜封面出图</h2>
+        <p class="desc">只输入主标题，支持下载两张 / 仅日富 / 仅半夏。</p>
+        <div class="actions">
+          <a class="btn primary" href="./simple.html">进入傻瓜模式</a>
+        </div>
+      </article>
+
+      <article class="card">
+        <span class="type">封面</span>
+        <h2>高级封面操作台</h2>
+        <p class="desc">支持上下文案、预览同步、单独模板下载与文件名前缀。</p>
+        <div class="actions">
+          <a class="btn" href="./advanced.html">进入高级模式</a>
+        </div>
+      </article>
+
+      <article class="card">
+        <span class="type">正文</span>
+        <h2>日富正文出图</h2>
+        <p class="desc">更偏专业参数控制，支持纯文本解析、JSON编辑、分页批量下载。</p>
+        <div class="actions">
+          <a class="btn primary" href="../body/richu-body.html">进入日富正文</a>
+        </div>
+      </article>
+
+      <article class="card">
+        <span class="type">正文</span>
+        <h2>半夏正文出图</h2>
+        <p class="desc">适合直接粘贴原始文案，自动分段分页并批量导出。</p>
+        <div class="actions">
+          <a class="btn" href="../body/banxia-body.html">进入半夏正文</a>
+        </div>
+      </article>
+    </section>
+
+    <p class="foot">兼容说明：根目录旧文件名仍可打开，会自动跳转到新位置。</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>跳转中...</title>
+  <meta http-equiv="refresh" content="0; url=./web/templates/richu-cover.html" />
+</head>
+<body>
+  <script>
+    const url = new URL('./web/templates/richu-cover.html', window.location.href);
+    url.search = window.location.search;
+    url.hash = window.location.hash;
+    window.location.replace(url.href);
+  </script>
+  <p>正在跳转到日富模板，如果未自动跳转，请点击 <a href="./web/templates/richu-cover.html">这里</a>。</p>
+</body>
+</html>

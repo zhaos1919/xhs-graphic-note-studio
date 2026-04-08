@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>封面一键出图操作台</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --line: #dfe3ea;
+      --text: #1f2430;
+      --muted: #667085;
+      --primary: #1f6feb;
+      --primary-dark: #1356be;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .wrap {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 14px;
+      min-height: 100vh;
+    }
+    .head {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+    .head h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+    }
+    .head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .control {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px 18px;
+      display: grid;
+      gap: 12px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      color: #3f4756;
+      margin-bottom: 5px;
+    }
+    input, textarea {
+      width: 100%;
+      border: 1px solid #cdd5df;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: #202733;
+    }
+    textarea {
+      min-height: 64px;
+      resize: vertical;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    button {
+      border: 1px solid #cdd5df;
+      background: #fff;
+      color: #273142;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    button.primary:hover { background: var(--primary-dark); }
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      min-height: 0;
+    }
+    .pane {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 0;
+    }
+    .pane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid #e8ebf0;
+      font-size: 13px;
+      background: #fafbfd;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+      background: #9aa4b2;
+      vertical-align: middle;
+    }
+    .dot.ready { background: #12b76a; }
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+      min-height: 600px;
+    }
+    @media (max-width: 1080px) {
+      .row, .grid { grid-template-columns: 1fr; }
+      iframe { min-height: 500px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="head">
+      <h1>封面一键出图操作台</h1>
+      <p>输入标题后，点击“下载两张（推荐）”即可导出两个模板。你也可以单独下载某一张。正文制作入口：<a href="../body/richu-body.html" target="_blank" rel="noopener">日富正文</a> / <a href="../body/banxia-body.html" target="_blank" rel="noopener">半夏正文</a></p>
+    </section>
+
+    <section class="control">
+      <div>
+        <label for="mainText">主标题（必填）</label>
+        <textarea id="mainText" placeholder="例如：普通人也能写出高级感文案"></textarea>
+      </div>
+      <div class="row">
+        <div>
+          <label for="topText">上方文字（可选）</label>
+          <input id="topText" type="text" placeholder="例如：可以写进小说的" />
+        </div>
+        <div>
+          <label for="bottomText">下方文字（可选）</label>
+          <input id="bottomText" type="text" placeholder="例如：小说素材、干货分享" />
+        </div>
+      </div>
+      <div>
+        <label for="filePrefix">文件名前缀（可选）</label>
+        <input id="filePrefix" type="text" placeholder="例如：4月选题（最终会导出为 4月选题-日富.png / 4月选题-半夏.png）" />
+      </div>
+      <div class="actions">
+        <button class="primary" id="downloadBothBtn">下载两张（推荐）</button>
+        <button id="downloadRichuBtn">仅下载日富</button>
+        <button id="downloadBanxiaBtn">仅下载半夏</button>
+        <button id="syncBtn">仅同步预览</button>
+      </div>
+      <div class="status" id="statusText">模板加载中，请稍等...</div>
+    </section>
+
+    <section class="grid">
+      <article class="pane">
+        <div class="pane-head">
+          <div><span class="dot" id="richuDot"></span>日富模板</div>
+          <div id="richuState">初始化中</div>
+        </div>
+        <iframe id="richuFrame" src="../templates/richu-cover.html" title="日富模板预览"></iframe>
+      </article>
+      <article class="pane">
+        <div class="pane-head">
+          <div><span class="dot" id="banxiaDot"></span>半夏模板</div>
+          <div id="banxiaState">初始化中</div>
+        </div>
+        <iframe id="banxiaFrame" src="../templates/banxia-cover.html" title="半夏模板预览"></iframe>
+      </article>
+    </section>
+  </div>
+
+  <script>
+    const templates = {
+      richu: {
+        frame: document.getElementById('richuFrame'),
+        dot: document.getElementById('richuDot'),
+        state: document.getElementById('richuState'),
+        suffix: '日富'
+      },
+      banxia: {
+        frame: document.getElementById('banxiaFrame'),
+        dot: document.getElementById('banxiaDot'),
+        state: document.getElementById('banxiaState'),
+        suffix: '半夏'
+      }
+    };
+
+    const ready = { richu: false, banxia: false };
+    const statusText = document.getElementById('statusText');
+    const mainTextEl = document.getElementById('mainText');
+    const topTextEl = document.getElementById('topText');
+    const bottomTextEl = document.getElementById('bottomText');
+    const filePrefixEl = document.getElementById('filePrefix');
+
+    function setStatus(text) {
+      statusText.textContent = text;
+    }
+
+    function cleanFileNamePart(value) {
+      return String(value || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    }
+
+    function buildFileName(templateKey) {
+      const prefix = cleanFileNamePart(filePrefixEl.value);
+      if (!prefix) return '';
+      return `${prefix}-${templates[templateKey].suffix}.png`;
+    }
+
+    function commonPayload(templateKey) {
+      return {
+        template: templateKey,
+        topText: topTextEl.value || '',
+        mainText: mainTextEl.value || '',
+        bottomText: bottomTextEl.value || '',
+        fileName: buildFileName(templateKey)
+      };
+    }
+
+    function postToTemplate(templateKey, type) {
+      const target = templates[templateKey];
+      if (!target || !target.frame || !target.frame.contentWindow) return;
+      target.frame.contentWindow.postMessage(
+        {
+          type,
+          ...commonPayload(templateKey)
+        },
+        '*'
+      );
+    }
+
+    function syncTemplate(templateKey) {
+      postToTemplate(templateKey, 'cover:setText');
+    }
+
+    function syncAll() {
+      syncTemplate('richu');
+      syncTemplate('banxia');
+    }
+
+    function updateReadyUi() {
+      Object.keys(templates).forEach((key) => {
+        const cfg = templates[key];
+        const isReady = ready[key];
+        cfg.dot.classList.toggle('ready', isReady);
+        cfg.state.textContent = isReady ? '已就绪' : '加载中';
+      });
+
+      if (ready.richu && ready.banxia) {
+        setStatus('模板已就绪，可以直接下载。');
+      } else {
+        setStatus('模板加载中，请稍等...');
+      }
+    }
+
+    function validateTitle() {
+      if ((mainTextEl.value || '').trim()) return true;
+      setStatus('请先填写主标题。');
+      mainTextEl.focus();
+      return false;
+    }
+
+    function ensureReady(templateKey) {
+      if (ready[templateKey]) return true;
+      setStatus(`${templates[templateKey].suffix}模板尚未就绪，请稍等后再试。`);
+      return false;
+    }
+
+    function downloadTemplate(templateKey) {
+      if (!validateTitle() || !ensureReady(templateKey)) return;
+      postToTemplate(templateKey, 'cover:setText');
+      postToTemplate(templateKey, 'cover:download');
+      setStatus(`已触发 ${templates[templateKey].suffix} 模板下载。`);
+    }
+
+    function downloadBoth() {
+      if (!validateTitle()) return;
+      if (!ensureReady('richu') || !ensureReady('banxia')) return;
+      postToTemplate('richu', 'cover:setText');
+      postToTemplate('banxia', 'cover:setText');
+      postToTemplate('richu', 'cover:download');
+      setTimeout(() => {
+        postToTemplate('banxia', 'cover:download');
+      }, 80);
+      setStatus('已触发两张封面下载。');
+    }
+
+    let syncTimer = null;
+    function scheduleSync() {
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(syncAll, 120);
+    }
+
+    mainTextEl.addEventListener('input', scheduleSync);
+    topTextEl.addEventListener('input', scheduleSync);
+    bottomTextEl.addEventListener('input', scheduleSync);
+    filePrefixEl.addEventListener('input', scheduleSync);
+
+    document.getElementById('syncBtn').addEventListener('click', () => {
+      syncAll();
+      setStatus('预览已同步。');
+    });
+    document.getElementById('downloadRichuBtn').addEventListener('click', () => {
+      downloadTemplate('richu');
+    });
+    document.getElementById('downloadBanxiaBtn').addEventListener('click', () => {
+      downloadTemplate('banxia');
+    });
+    document.getElementById('downloadBothBtn').addEventListener('click', downloadBoth);
+
+    window.addEventListener('message', (event) => {
+      const data = event && event.data;
+      if (!data || typeof data !== 'object') return;
+      if (data.type !== 'cover:ready') return;
+      if (!Object.prototype.hasOwnProperty.call(ready, data.template)) return;
+
+      ready[data.template] = true;
+      updateReadyUi();
+      syncTemplate(data.template);
+    });
+
+    updateReadyUi();
+  </script>
+</body>
+</html>

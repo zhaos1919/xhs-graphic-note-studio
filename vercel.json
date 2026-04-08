@@ -1,0 +1,34 @@
+{
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/web/studio/index.html",
+      "permanent": false
+    },
+    {
+      "source": "/studio",
+      "destination": "/web/studio/index.html",
+      "permanent": false
+    },
+    {
+      "source": "/cover",
+      "destination": "/web/studio/simple.html",
+      "permanent": false
+    },
+    {
+      "source": "/cover/advanced",
+      "destination": "/web/studio/advanced.html",
+      "permanent": false
+    },
+    {
+      "source": "/body/richu",
+      "destination": "/web/body/richu-body.html",
+      "permanent": false
+    },
+    {
+      "source": "/body/banxia",
+      "destination": "/web/body/banxia-body.html",
+      "permanent": false
+    }
+  ]
+}

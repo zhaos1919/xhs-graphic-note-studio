@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>批量文案自动出图｜原始文本直贴版</title>
+  <style>
+    :root{
+      --bg:#f6f7f8;--panel:#fff;--line:#dde2e8;--text:#1f2937;--muted:#6b7280;--accent:#0f766e;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:"Microsoft YaHei","PingFang SC",sans-serif;
+    }
+    .wrap{
+      display:grid;
+      grid-template-columns:480px 1fr;
+      gap:18px;
+      padding:18px;
+      min-height:100vh;
+    }
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow:0 6px 18px rgba(0,0,0,.05);
+    }
+    .left,.right{padding:18px}
+    .right{display:flex;flex-direction:column;gap:14px}
+    h1{margin:0 0 8px;font-size:24px}
+    .sub{color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:14px}
+    .row{margin-bottom:14px}
+    label{display:block;margin-bottom:8px;font-size:14px;font-weight:700}
+    input[type=file],textarea,select{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px 12px;
+      background:#fff;
+      font:inherit;
+    }
+    textarea{
+      min-height:360px;
+      resize:vertical;
+      line-height:1.7;
+      font-size:13px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+    .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+    button{
+      border:0;border-radius:12px;padding:10px 14px;
+      background:#111827;color:#fff;cursor:pointer;font:inherit
+    }
+    button.alt{background:var(--accent)}
+    button.light{background:#e5e7eb;color:#111827}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .status{
+      margin-top:12px;padding:10px 12px;border-radius:12px;
+      background:#f3f4f6;font-size:13px;line-height:1.7;white-space:pre-wrap
+    }
+    .hint{font-size:12px;color:var(--muted);line-height:1.7}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .previewBox{
+      flex:1;min-height:320px;display:flex;justify-content:center;align-items:flex-start;
+      overflow:auto;background:#eef2f7;border:1px solid var(--line);border-radius:14px;padding:14px
+    }
+    canvas{max-width:100%;height:auto;border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.08);background:#fff}
+    .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+    .thumb{border:1px solid var(--line);border-radius:12px;padding:8px;background:#fff;cursor:pointer}
+    .thumb.active{outline:2px solid var(--accent)}
+    .thumb img{width:100%;display:block;border-radius:8px}
+    .thumb .t{font-size:12px;margin-top:6px;color:#374151}
+    .mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width:980px){.wrap{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel left">
+      <h1>批量文案自动出图</h1>
+      <div class="sub">这版不用自己填 JSON。你可以直接把整段原始内容粘进来，例如“第 2 页 / 页标题：... / 多条正文”。系统会自动识别分页、标题和正文，并按版式自动排版。</div>
+
+      <div class="row">
+        <label>1. 背景图</label>
+        <input id="bgFile" type="file" accept="image/*" />
+      </div>
+
+      <div class="mini-grid">
+        <div class="row">
+          <label>2. 正文字体文件（可选，建议上传思源宋体）</label>
+          <input id="fontRegularFile" type="file" accept=".ttf,.otf,.ttc,.woff,.woff2" />
+        </div>
+        <div class="row">
+          <label>3. 标题字体文件（可选，可与正文字体相同）</label>
+          <input id="fontBoldFile" type="file" accept=".ttf,.otf,.ttc,.woff,.woff2" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label>4. 直接粘贴原始文本</label>
+        <textarea id="rawInput"></textarea>
+      </div>
+
+      <div class="btns">
+        <button class="light" id="loadExampleBtn">载入示例</button>
+        <button id="renderBtn">自动解析并渲染</button>
+        <button class="alt" id="downloadCurrentBtn" disabled>下载当前页</button>
+        <button class="alt" id="downloadAllBtn" disabled>下载全部页</button>
+      </div>
+
+      <div class="status" id="status">等待操作。</div>
+      <div class="hint" style="margin-top:10px;">
+        说明：<br>
+        1）如果浏览器里字体看起来不对，通常是因为电脑没有安装对应字体。<br>
+        2）最稳妥的方法是上传你本机的思源宋体字体文件。<br>
+        3）文本格式支持：第 2 页、页标题：xxx，后面每行一条正文。
+      </div>
+    </section>
+
+    <section class="panel right">
+      <div class="toolbar">
+        <div><strong>预览</strong></div>
+        <div><select id="pageSelect"></select></div>
+      </div>
+      <div class="previewBox">
+        <canvas id="previewCanvas" width="1242" height="1656"></canvas>
+      </div>
+      <div class="thumbs" id="thumbs"></div>
+    </section>
+  </div>
+
+  <script>
+    const CONFIG = {
+      canvasWidth: 1242,
+      canvasHeight: 1656,
+      marginX: 90,
+      topStart: 85,
+      bottomMargin: 95,
+      titleSize: 50,
+      titleLineHeight: 68,
+      titleGapAfter: 18,
+      bodySize: 43,
+      bodyLineHeight: 59,
+      itemGap: 38,
+      textColor: '#2b2620',
+      maxItemsPerPage: 8
+    };
+
+    const exampleText = `第 2 页
+页标题：初见式重逢｜一眼万年的宿命感描写
+她抬眼的瞬间，就从逆光而来的剪影里，认出了那个刻在心底的人
+人声鼎沸的走廊里，她只一眼，就锁定了人群中那个熟悉又陌生的身影
+隔着满室喧嚣，她的目光越过无数人，猝不及防撞进了那双阔别多年的眼眸
+晚风卷着夕阳的光漫进来，他逆着光走来，她只看了个轮廓，心跳就骤然失序
+车水马龙的街头，她隔着斑马线，一眼就认出了那个多年未见的背影
+她垂着眼翻书，余光扫过门口的身影，指尖猛地一顿，连呼吸都忘了放轻
+满堂宾客的喧闹里，她的目光只追着那道身影，时隔多年，还是一眼就认了出来
+雨幕模糊了视线，可他撑伞走来的样子，她只看了一眼，就红了眼眶
+
+第 3 页
+页标题：久别重逢｜女主视角的情绪拉扯描写
+她没说话，只静静抬眸望着他，当年的少年褪去了青涩，眉眼间只剩洗练的沉稳
+她凝着他的眉眼，记忆里的少年和眼前的男人慢慢重叠，又在细微处全然不同
+她看着他，指尖微微蜷缩，当年张扬锋利的少年，如今只剩一身温和的疏离
+她的目光扫过他的轮廓，时隔多年，他还是她记忆里的样子，又好像完全不是了`;
+
+    const bgFile = document.getElementById('bgFile');
+    const fontRegularFile = document.getElementById('fontRegularFile');
+    const fontBoldFile = document.getElementById('fontBoldFile');
+    const rawInput = document.getElementById('rawInput');
+    const statusEl = document.getElementById('status');
+    const renderBtn = document.getElementById('renderBtn');
+    const loadExampleBtn = document.getElementById('loadExampleBtn');
+    const downloadCurrentBtn = document.getElementById('downloadCurrentBtn');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const previewCanvas = document.getElementById('previewCanvas');
+    const thumbs = document.getElementById('thumbs');
+    const pageSelect = document.getElementById('pageSelect');
+    const previewCtx = previewCanvas.getContext('2d');
+
+    let backgroundImage = null;
+    let renderedPages = [];
+    let currentIndex = 0;
+    let bodyFontFamily = '"Noto Serif CJK SC","Source Han Serif SC","STSong","SimSun","Songti SC","PingFang SC","Microsoft YaHei",serif';
+    let titleFontFamily = bodyFontFamily;
+
+    function setStatus(text){ statusEl.textContent = text; }
+
+    function getTitleFont(){ return `700 ${CONFIG.titleSize}px ${titleFontFamily}`; }
+    function getBodyFont(){ return `400 ${CONFIG.bodySize}px ${bodyFontFamily}`; }
+
+    async function loadLocalFont(file, familyName) {
+      const url = URL.createObjectURL(file);
+      const font = new FontFace(familyName, `url(${url})`);
+      await font.load();
+      document.fonts.add(font);
+      return familyName;
+    }
+
+    function loadExample(){
+      rawInput.value = exampleText;
+      setStatus('已载入示例文本。');
+    }
+
+    function parseRawText(text){
+      const lines = String(text).replace(/\r/g,'').split('\n');
+      const pages = [];
+      let current = null;
+
+      for(let raw of lines){
+        const line = raw.trim();
+        if(!line) continue;
+
+        const pageMatch = line.match(/^第\s*(\d+)\s*页$/);
+        if(pageMatch){
+          if(current) pages.push(current);
+          current = { page_no: Number(pageMatch[1]), title: '', items: [] };
+          continue;
+        }
+
+        const titleMatch = line.match(/^页标题[：:]\s*(.+)$/);
+        if(titleMatch){
+          if(!current) current = { page_no: '', title: '', items: [] };
+          current.title = titleMatch[1].trim();
+          continue;
+        }
+
+        if(!current){
+          current = { page_no: '', title: '', items: [] };
+        }
+        current.items.push(line);
+      }
+
+      if(current) pages.push(current);
+
+      if(!pages.length){
+        throw new Error('没有识别到有效内容。请按“第 2 页 / 页标题：xxx / 每行一条正文”的格式粘贴。');
+      }
+
+      for(const p of pages){
+        if(!p.title) throw new Error('有页面缺少“页标题：”这一行。');
+      }
+      return pages;
+    }
+
+    function wrapTextByPixel(ctx, text, maxWidth){
+      const lines = [];
+      let current = '';
+      for(const ch of String(text)){
+        const test = current + ch;
+        const width = ctx.measureText(test).width;
+        if(width <= maxWidth || !current){
+          current = test;
+        }else{
+          lines.push(current);
+          current = ch;
+        }
+      }
+      if(current) lines.push(current);
+      return lines;
+    }
+
+    function splitPageItems(title, items){
+      const c = document.createElement('canvas');
+      c.width = CONFIG.canvasWidth;
+      c.height = CONFIG.canvasHeight;
+      const ctx = c.getContext('2d');
+
+      const maxWidth = CONFIG.canvasWidth - CONFIG.marginX * 2;
+      ctx.font = getTitleFont();
+      const titleLines = wrapTextByPixel(ctx, title, maxWidth);
+      const usedHeight = titleLines.length * CONFIG.titleLineHeight + CONFIG.titleGapAfter;
+      const usableBottom = CONFIG.canvasHeight - CONFIG.bottomMargin;
+
+      const groups = [];
+      let currentItems = [];
+      let currentHeight = usedHeight;
+
+      ctx.font = getBodyFont();
+      for(const item of items){
+        const itemLines = wrapTextByPixel(ctx, item, maxWidth);
+        const itemHeight = itemLines.length * CONFIG.bodyLineHeight;
+        const extraGap = currentItems.length === 0 ? 0 : CONFIG.itemGap;
+
+        if(currentItems.length >= CONFIG.maxItemsPerPage){
+          groups.push({ title, items: currentItems.slice() });
+          currentItems = [item];
+          currentHeight = usedHeight + itemHeight;
+          continue;
+        }
+
+        if(currentHeight + extraGap + itemHeight > usableBottom && currentItems.length > 0){
+          groups.push({ title, items: currentItems.slice() });
+          currentItems = [item];
+          currentHeight = usedHeight + itemHeight;
+        }else{
+          currentItems.push(item);
+          currentHeight += extraGap + itemHeight;
+        }
+      }
+      if(currentItems.length) groups.push({ title, items: currentItems.slice() });
+      return groups;
+    }
+
+    function drawDefaultBackground(ctx){
+      const g = ctx.createLinearGradient(0,0,0,CONFIG.canvasHeight);
+      g.addColorStop(0,'#b5d9ce');
+      g.addColorStop(0.22,'#eceded');
+      g.addColorStop(0.72,'#cde4df');
+      g.addColorStop(1,'#64beb0');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,CONFIG.canvasWidth,CONFIG.canvasHeight);
+    }
+
+    function renderOnePage(bgImg, title, items){
+      const c = document.createElement('canvas');
+      c.width = CONFIG.canvasWidth;
+      c.height = CONFIG.canvasHeight;
+      const ctx = c.getContext('2d');
+
+      if(bgImg){
+        ctx.drawImage(bgImg, 0, 0, CONFIG.canvasWidth, CONFIG.canvasHeight);
+      }else{
+        drawDefaultBackground(ctx);
+      }
+
+      const maxWidth = CONFIG.canvasWidth - CONFIG.marginX * 2;
+      let y = CONFIG.topStart;
+      const x = CONFIG.marginX;
+      ctx.fillStyle = CONFIG.textColor;
+      ctx.textBaseline = 'top';
+
+      ctx.font = getTitleFont();
+      const titleLines = wrapTextByPixel(ctx, title, maxWidth);
+      for(const line of titleLines){
+        ctx.fillText(line, x, y);
+        y += CONFIG.titleLineHeight;
+      }
+      y += CONFIG.titleGapAfter;
+
+      ctx.font = getBodyFont();
+      items.forEach((item, idx) => {
+        const lines = wrapTextByPixel(ctx, item, maxWidth);
+        for(const line of lines){
+          ctx.fillText(line, x, y);
+          y += CONFIG.bodyLineHeight;
+        }
+        if(idx !== items.length - 1) y += CONFIG.itemGap;
+      });
+
+      return c;
+    }
+
+    function refreshThumbs(){
+      thumbs.innerHTML = '';
+      pageSelect.innerHTML = '';
+      renderedPages.forEach((page, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = page.name;
+        pageSelect.appendChild(opt);
+
+        const div = document.createElement('div');
+        div.className = 'thumb' + (idx === currentIndex ? ' active' : '');
+        const img = document.createElement('img');
+        img.src = page.canvas.toDataURL('image/png');
+        const t = document.createElement('div');
+        t.className = 't';
+        t.textContent = page.name;
+        div.appendChild(img);
+        div.appendChild(t);
+        div.addEventListener('click', () => showPage(idx));
+        thumbs.appendChild(div);
+      });
+    }
+
+    function showPage(index){
+      if(!renderedPages.length) return;
+      currentIndex = index;
+      previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
+      previewCtx.drawImage(renderedPages[index].canvas,0,0);
+      pageSelect.value = String(index);
+      [...thumbs.children].forEach((el,i)=>el.classList.toggle('active', i===index));
+    }
+
+    function downloadCanvas(canvas, filename){
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    async function prepareFonts(){
+      let info = [];
+      if(fontRegularFile.files[0]){
+        bodyFontFamily = `"UserBodyFont","Noto Serif CJK SC","Source Han Serif SC","STSong","SimSun","Songti SC",serif`;
+        await loadLocalFont(fontRegularFile.files[0], 'UserBodyFont');
+        info.push('正文字体已加载');
+      }else{
+        bodyFontFamily = '"Noto Serif CJK SC","Source Han Serif SC","STSong","SimSun","Songti SC","PingFang SC","Microsoft YaHei",serif';
+      }
+
+      if(fontBoldFile.files[0]){
+        titleFontFamily = `"UserTitleFont","UserBodyFont","Noto Serif CJK SC","Source Han Serif SC","STSong","SimSun","Songti SC",serif`;
+        await loadLocalFont(fontBoldFile.files[0], 'UserTitleFont');
+        info.push('标题字体已加载');
+      }else{
+        titleFontFamily = bodyFontFamily;
+      }
+      return info;
+    }
+
+    async function renderAll(){
+      try{
+        const raw = rawInput.value.trim();
+        if(!raw) throw new Error('请先粘贴原始文本内容。');
+
+        const pages = parseRawText(raw);
+        const fontInfo = await prepareFonts();
+
+        const all = [];
+        for(const page of pages){
+          const pageNo = page.page_no ?? '';
+          const title = page.title;
+          const items = page.items || [];
+          const subPages = splitPageItems(title, items);
+
+          if(subPages.length === 1){
+            const name = pageNo !== '' ? `第${pageNo}页.png` : `${title.slice(0,12)}.png`;
+            all.push({ name, canvas: renderOnePage(backgroundImage, title, items) });
+          }else{
+            subPages.forEach((sp, idx) => {
+              const name = pageNo !== '' ? `第${pageNo}页_${idx+1}.png` : `${title.slice(0,12)}_${idx+1}.png`;
+              all.push({ name, canvas: renderOnePage(backgroundImage, sp.title, sp.items) });
+            });
+          }
+        }
+
+        renderedPages = all;
+        currentIndex = 0;
+        refreshThumbs();
+        showPage(0);
+        downloadCurrentBtn.disabled = false;
+        downloadAllBtn.disabled = false;
+
+        const fontMsg = fontInfo.length ? '；' + fontInfo.join('，') : '；未上传字体文件，当前使用本机可用字体回退';
+        setStatus(`解析并渲染完成，共 ${renderedPages.length} 张${fontMsg}。`);
+      }catch(err){
+        console.error(err);
+        setStatus('处理失败：' + err.message);
+      }
+    }
+
+    bgFile.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          backgroundImage = img;
+          setStatus('背景图已载入。');
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    loadExampleBtn.addEventListener('click', loadExample);
+    renderBtn.addEventListener('click', renderAll);
+    pageSelect.addEventListener('change', (e) => showPage(Number(e.target.value)));
+    downloadCurrentBtn.addEventListener('click', () => {
+      if(!renderedPages.length) return;
+      const page = renderedPages[currentIndex];
+      downloadCanvas(page.canvas, page.name);
+    });
+    downloadAllBtn.addEventListener('click', async () => {
+      if(!renderedPages.length) return;
+      for(let i=0;i<renderedPages.length;i++){
+        const page = renderedPages[i];
+        downloadCanvas(page.canvas, page.name);
+        await new Promise(r => setTimeout(r, 250));
+      }
+    });
+
+    loadExample();
+    previewCtx.fillStyle = '#ffffff';
+    previewCtx.fillRect(0,0,previewCanvas.width,previewCanvas.height);
+    previewCtx.fillStyle = '#9ca3af';
+    previewCtx.font = '16px Microsoft YaHei';
+    previewCtx.fillText('这里会显示渲染预览', 40, 40);
+  </script>
+</body>
+</html>
