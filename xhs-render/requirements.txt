@@ -1,0 +1,4 @@
+# Python >= 3.9 required
+# 详细配置见 pyproject.toml
+
+Pillow>=10.0.0

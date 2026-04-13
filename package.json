@@ -6,6 +6,7 @@
   "scripts": {
     "generate": "node scripts/generate-cover.js",
     "studio": "open ./web/studio/index.html",
+    "studio:auto": "open ./web/studio/auto.html",
     "studio:cover": "open ./web/studio/simple.html",
     "studio:advanced": "open ./web/studio/advanced.html",
     "studio:body:richu": "open ./web/body/richu-body.html",

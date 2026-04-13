@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>选题自动工坊</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --line: #d9e1ee;
+      --text: #1f2430;
+      --muted: #657389;
+      --primary: #0f62fe;
+      --primary-dark: #0a4ecb;
+      --good: #0f9f63;
+      --warn: #cb3c14;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top right, #e8f0ff 0, #f4f7fb 46%, #edf2f8 100%);
+      color: var(--text);
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .wrap {
+      width: min(1320px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 14px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 10px 24px rgba(18, 33, 64, 0.06);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.2;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+    .desc {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 14px;
+    }
+    .grid3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    label {
+      display: block;
+      margin: 8px 0 6px;
+      font-size: 13px;
+      color: #344054;
+      font-weight: 600;
+    }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid #cdd7e5;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      background: #fff;
+      color: #1f2430;
+    }
+    textarea {
+      resize: vertical;
+      min-height: 86px;
+      line-height: 1.6;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .topic-input {
+      min-height: 108px;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    .btns {
+      margin-top: 12px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: 1px solid #c7d4e8;
+      background: #fff;
+      color: #1f2b3d;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+      font-weight: 700;
+    }
+    button.primary:hover { background: var(--primary-dark); }
+    button:disabled {
+      opacity: .62;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 10px;
+      min-height: 24px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .status.good { color: var(--good); }
+    .status.warn { color: var(--warn); }
+    .pill-row {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #edf2ff;
+      color: #3359aa;
+    }
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-top: 6px;
+    }
+    .output-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .output-grid textarea {
+      min-height: 220px;
+    }
+    .hidden-frame {
+      width: 0;
+      height: 0;
+      border: 0;
+      position: absolute;
+      left: -9999px;
+      top: -9999px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    @media (max-width: 1120px) {
+      .grid2 { grid-template-columns: 1fr; }
+      .output-grid { grid-template-columns: 1fr; }
+      .grid3 { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>选题自动工坊</h1>
+      <div class="desc">输入选题后，自动生成文本内容，并同步到封面/内页页面。你可以先看生成结果，再一键触发下载。</div>
+      <div class="pill-row">
+        <span class="pill" id="coverReadyPill">封面模板：加载中</span>
+        <span class="pill" id="bodyReadyPill">内页模板：加载中</span>
+      </div>
+    </section>
+
+    <section class="grid2">
+      <article class="card">
+        <h2>1. 选题与生成</h2>
+        <label for="topicInput">选题</label>
+        <textarea id="topicInput" class="topic-input" placeholder="例如：写恋爱文时，如何写出高张力重逢场景"></textarea>
+
+        <div class="grid3">
+          <div>
+            <label for="bodyPageCount">正文页数</label>
+            <input id="bodyPageCount" type="number" min="6" max="8" value="7" />
+          </div>
+          <div>
+            <label for="coverTarget">封面模板</label>
+            <select id="coverTarget">
+              <option value="both">日富 + 半夏</option>
+              <option value="richu">仅日富</option>
+              <option value="banxia">仅半夏</option>
+            </select>
+          </div>
+          <div>
+            <label for="bodyTarget">内页模板</label>
+            <select id="bodyTarget">
+              <option value="banxia">半夏正文</option>
+              <option value="richu">日富正文</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="btns">
+          <button class="primary" id="generateBtn">生成文本内容</button>
+          <button id="syncBtn" disabled>同步到模板预览</button>
+          <button class="primary" id="generateAndDownloadBtn">一键生成并下载</button>
+        </div>
+        <div id="statusText" class="status">等待操作。</div>
+      </article>
+
+      <article class="card">
+        <h2>2. API 配置</h2>
+        <label for="apiBaseUrl">API Base URL</label>
+        <input id="apiBaseUrl" type="text" value="https://api.openai.com/v1" />
+
+        <div class="row">
+          <div>
+            <label for="modelInput">模型</label>
+            <input id="modelInput" type="text" value="gpt-4.1-mini" />
+          </div>
+          <div>
+            <label for="temperatureInput">Temperature</label>
+            <input id="temperatureInput" type="number" value="0.7" min="0" max="1.5" step="0.1" />
+          </div>
+        </div>
+
+        <label for="apiKeyInput">API Key</label>
+        <input id="apiKeyInput" type="password" placeholder="sk-..." autocomplete="off" />
+
+        <div class="btns" style="margin-top:10px;">
+          <button id="presetOllamaBtn" type="button">本地 Ollama 一键填充</button>
+        </div>
+
+        <div class="small">
+          说明：
+          1）密钥只在当前页面内存中使用，不会写入磁盘。
+          2）若你使用兼容 OpenAI Chat Completions 的网关，也可填对应 Base URL。
+          3）如果接口返回不是 JSON，本页会自动尝试从代码块里提取 JSON。
+        </div>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2>3. 生成结果</h2>
+      <div class="output-grid">
+        <div>
+          <label for="outlineOutput">结构化 JSON</label>
+          <textarea id="outlineOutput" readonly placeholder="这里会显示模型返回的结构化结果"></textarea>
+        </div>
+        <div>
+          <label for="banxiaRawOutput">半夏内页原始文本</label>
+          <textarea id="banxiaRawOutput" readonly placeholder="这里会显示可直接用于半夏正文页的文本"></textarea>
+        </div>
+        <div>
+          <label for="richuRawOutput">日富内页原始文本</label>
+          <textarea id="richuRawOutput" readonly placeholder="这里会显示可直接用于日富正文页的文本"></textarea>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <iframe id="richuCoverFrame" class="hidden-frame" src="../templates/richu-cover.html" title="richu cover"></iframe>
+  <iframe id="banxiaCoverFrame" class="hidden-frame" src="../templates/banxia-cover.html" title="banxia cover"></iframe>
+  <iframe id="richuBodyFrame" class="hidden-frame" src="../body/richu-body.html" title="richu body"></iframe>
+  <iframe id="banxiaBodyFrame" class="hidden-frame" src="../body/banxia-body.html" title="banxia body"></iframe>
+
+  <script>
+    const frames = {
+      cover: {
+        richu: document.getElementById('richuCoverFrame'),
+        banxia: document.getElementById('banxiaCoverFrame')
+      },
+      body: {
+        richu: document.getElementById('richuBodyFrame'),
+        banxia: document.getElementById('banxiaBodyFrame')
+      }
+    };
+
+    const ready = {
+      cover: { richu: false, banxia: false },
+      body: { richu: false, banxia: false }
+    };
+
+    const promptRefs = {
+      banxia: '',
+      richu: ''
+    };
+
+    const state = {
+      generated: null,
+      banxiaRaw: '',
+      richuRaw: ''
+    };
+
+    const OLLAMA_PRESET = {
+      apiBaseUrl: 'http://127.0.0.1:11434/v1',
+      model: 'qwen2.5:14b',
+      temperature: '0.6',
+      apiKey: 'ollama'
+    };
+
+    const els = {
+      topicInput: document.getElementById('topicInput'),
+      bodyPageCount: document.getElementById('bodyPageCount'),
+      coverTarget: document.getElementById('coverTarget'),
+      bodyTarget: document.getElementById('bodyTarget'),
+      apiBaseUrl: document.getElementById('apiBaseUrl'),
+      modelInput: document.getElementById('modelInput'),
+      temperatureInput: document.getElementById('temperatureInput'),
+      apiKeyInput: document.getElementById('apiKeyInput'),
+      presetOllamaBtn: document.getElementById('presetOllamaBtn'),
+      generateBtn: document.getElementById('generateBtn'),
+      syncBtn: document.getElementById('syncBtn'),
+      generateAndDownloadBtn: document.getElementById('generateAndDownloadBtn'),
+      statusText: document.getElementById('statusText'),
+      outlineOutput: document.getElementById('outlineOutput'),
+      banxiaRawOutput: document.getElementById('banxiaRawOutput'),
+      richuRawOutput: document.getElementById('richuRawOutput'),
+      coverReadyPill: document.getElementById('coverReadyPill'),
+      bodyReadyPill: document.getElementById('bodyReadyPill')
+    };
+
+    function setStatus(text, level) {
+      els.statusText.textContent = text;
+      els.statusText.classList.remove('good', 'warn');
+      if (level === 'good') els.statusText.classList.add('good');
+      if (level === 'warn') els.statusText.classList.add('warn');
+    }
+
+    function setBusy(isBusy) {
+      els.generateBtn.disabled = isBusy;
+      els.generateAndDownloadBtn.disabled = isBusy;
+      els.syncBtn.disabled = isBusy || !state.generated;
+    }
+
+    function safeFileName(value) {
+      return String(value || '').replace(/[\\/:*?"<>|]/g, '').trim();
+    }
+
+    function applyOllamaPreset() {
+      els.apiBaseUrl.value = OLLAMA_PRESET.apiBaseUrl;
+      els.modelInput.value = OLLAMA_PRESET.model;
+      els.temperatureInput.value = OLLAMA_PRESET.temperature;
+      els.apiKeyInput.value = OLLAMA_PRESET.apiKey;
+      setStatus('已填充本地 Ollama 配置。请先在本机运行 `ollama serve`，并确保已拉取模型。');
+    }
+
+    function formatNetworkError(baseUrl, err) {
+      const raw = String((err && err.message) || err || '').trim() || '网络请求失败';
+      if (!/load failed|failed to fetch|networkerror/i.test(raw)) {
+        return raw;
+      }
+
+      if (/localhost|127\.0\.0\.1/.test(String(baseUrl || ''))) {
+        return [
+          `无法连接本地模型服务：${baseUrl}`,
+          '请确认已执行 `ollama serve`，并先拉取模型（例如 `ollama pull qwen2.5:14b`）。',
+          '如果你在 https 页面里请求本地 http，也会被浏览器拦截；建议用本地 http 打开本页再试。',
+          '可先在终端测试：`curl http://127.0.0.1:11434/api/tags`。'
+        ].join('\n');
+      }
+
+      return `网络请求失败：${raw}`;
+    }
+
+    function selectedCoverTemplates() {
+      const v = els.coverTarget.value;
+      if (v === 'richu' || v === 'banxia') return [v];
+      return ['richu', 'banxia'];
+    }
+
+    function selectedBodyTemplate() {
+      return els.bodyTarget.value === 'richu' ? 'richu' : 'banxia';
+    }
+
+    function updateReadyPills() {
+      const coverOk = ready.cover.richu && ready.cover.banxia;
+      const bodyOk = ready.body.richu && ready.body.banxia;
+      els.coverReadyPill.textContent = coverOk ? '封面模板：已就绪' : '封面模板：加载中';
+      els.bodyReadyPill.textContent = bodyOk ? '内页模板：已就绪' : '内页模板：加载中';
+    }
+
+    function waitForTemplates(need, timeoutMs = 15000) {
+      const start = Date.now();
+      return new Promise((resolve, reject) => {
+        const timer = setInterval(() => {
+          const coverReady = need.cover.every(key => ready.cover[key]);
+          const bodyReady = need.body.every(key => ready.body[key]);
+          if (coverReady && bodyReady) {
+            clearInterval(timer);
+            resolve();
+            return;
+          }
+          if (Date.now() - start > timeoutMs) {
+            clearInterval(timer);
+            reject(new Error('模板加载超时，请刷新页面后重试。'));
+          }
+        }, 80);
+      });
+    }
+
+    function postToCover(template, type, payload) {
+      const frame = frames.cover[template];
+      if (!frame || !frame.contentWindow) return;
+      frame.contentWindow.postMessage({ type, template, ...payload }, '*');
+    }
+
+    function postToBody(template, type, payload) {
+      const frame = frames.body[template];
+      if (!frame || !frame.contentWindow) return;
+      frame.contentWindow.postMessage({ type, template, ...payload }, '*');
+    }
+
+    function extractJsonText(raw) {
+      const text = String(raw || '').trim();
+      if (!text) throw new Error('模型没有返回内容。');
+      const fenced = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```\s*([\s\S]*?)```/i);
+      return fenced ? fenced[1].trim() : text;
+    }
+
+    function normalizeItems(items) {
+      if (!Array.isArray(items)) return [];
+      return items
+        .map(item => {
+          if (typeof item === 'string') return item.trim();
+          if (item && typeof item === 'object') {
+            if (typeof item.text === 'string') return item.text.trim();
+            if (typeof item.value === 'string') return item.value.trim();
+          }
+          return '';
+        })
+        .filter(Boolean);
+    }
+
+    function normalizeResult(parsed) {
+      const cover = parsed && typeof parsed.cover === 'object' ? parsed.cover : {};
+      const pages = Array.isArray(parsed && parsed.body_pages) ? parsed.body_pages : [];
+
+      const normalizedPages = pages
+        .map((page, idx) => {
+          const title = String(page && page.title ? page.title : '').trim() || `第${idx + 2}页内容`;
+          const items = normalizeItems(page && page.items);
+          return { title, items: items.length ? items : ['待补充内容'] };
+        })
+        .filter(page => page.items.length);
+
+      if (!normalizedPages.length) {
+        throw new Error('模型返回缺少 body_pages。');
+      }
+
+      const titleCandidates = Array.isArray(parsed && parsed.title_candidates)
+        ? parsed.title_candidates.map(s => String(s || '').trim()).filter(Boolean)
+        : [];
+
+      return {
+        title_candidates: titleCandidates,
+        cover: {
+          top: String(cover.top || '').trim() || '写小说可用的',
+          main: String(cover.main || '').trim() || (titleCandidates[0] || '小说写作素材'),
+          bottom: String(cover.bottom || '').trim() || '小说素材｜写作技巧｜干货分享'
+        },
+        body_pages: normalizedPages
+      };
+    }
+
+    function buildBanxiaRaw(bodyPages) {
+      return bodyPages
+        .map((page, idx) => {
+          const pageNo = idx + 2;
+          return `第 ${pageNo} 页\n页标题：${page.title}\n${page.items.join('\n')}`;
+        })
+        .join('\n\n');
+    }
+
+    function buildRichuRaw(bodyPages) {
+      return bodyPages
+        .map((page, idx) => {
+          const pageNo = idx + 1;
+          return `【正文第 ${pageNo} 页】\n${page.title}\n${page.items.join('\n')}`;
+        })
+        .join('\n\n');
+    }
+
+    function getPromptFallback() {
+      return {
+        banxia: [
+          '你是小红书小说写作素材账号编辑。',
+          '输出内容要高密度、可直接拿去写小说，少讲理论。',
+          '正文每页要有清晰条目，适合图片排版和收藏。'
+        ].join('\n'),
+        richu: [
+          '输出结构要兼容“条目标题：正文”或普通句式。',
+          '允许普通写法/优化写法对比，并适当加入“适配”说明。'
+        ].join('\n')
+      };
+    }
+
+    async function loadPromptReferences() {
+      const fallback = getPromptFallback();
+      const refs = [
+        { key: 'banxia', path: '../../prompt/prompt/文本内容-半夏.txt' },
+        { key: 'richu', path: '../../prompt/prompt/文本内容-日富.txt' }
+      ];
+
+      for (const ref of refs) {
+        try {
+          const res = await fetch(ref.path, { cache: 'no-store' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const txt = await res.text();
+          promptRefs[ref.key] = txt.slice(0, 3500);
+        } catch (_) {
+          promptRefs[ref.key] = fallback[ref.key];
+        }
+      }
+    }
+
+    function buildMessages(topic, bodyPageCount) {
+      const systemPrompt = [
+        '你是“小红书小说写作素材号”的中文内容编辑。',
+        '请基于用户选题输出可直接用于封面与正文排版的结构化结果。',
+        '必须返回 JSON，不要输出任何额外解释。',
+        '内容要有素材感和可保存价值，优先给可直接套用句子/表达。'
+      ].join('\n');
+
+      const schemaHint = [
+        '{',
+        '  "title_candidates": ["...", "..."],',
+        '  "cover": { "top": "...", "main": "...", "bottom": "..." },',
+        '  "body_pages": [',
+        '    { "title": "...", "items": ["...", "..."] }',
+        '  ]',
+        '}'
+      ].join('\n');
+
+      const userPrompt = [
+        `【选题】${topic}`,
+        `【正文页数】${bodyPageCount} 页（仅正文页，不含封面）`,
+        '【要求】',
+        '1. 每页建议 6-8 条，条目可直接用于小说写作。',
+        '2. 可混用：素材句、替换表达、普通写法/优化写法对比、适配人设。',
+        '3. title_candidates 给 8 个标题（3 实用型 + 3 素材积累型 + 2 轻情绪型）。',
+        '4. cover.main 要简洁有记忆点，适合封面大字。',
+        '5. 返回严格 JSON。',
+        '【参考风格-半夏】',
+        promptRefs.banxia || '',
+        '【参考风格-日富】',
+        promptRefs.richu || '',
+        '【输出 JSON 示例】',
+        schemaHint
+      ].join('\n\n');
+
+      return [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ];
+    }
+
+    async function requestGeneration(topic, bodyPageCount) {
+      const apiKey = els.apiKeyInput.value.trim();
+      if (!apiKey) throw new Error('请先填写 API Key。');
+
+      const baseUrl = (els.apiBaseUrl.value || '').trim().replace(/\/$/, '');
+      if (!baseUrl) throw new Error('请填写 API Base URL。');
+
+      const model = (els.modelInput.value || '').trim();
+      if (!model) throw new Error('请填写模型名称。');
+
+      const temperature = Number(els.temperatureInput.value || 0.7);
+      const endpoint = `${baseUrl}/chat/completions`;
+      const messages = buildMessages(topic, bodyPageCount);
+
+      let res;
+      try {
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model,
+            temperature,
+            messages
+          })
+        });
+      } catch (err) {
+        throw new Error(formatNetworkError(baseUrl, err));
+      }
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`接口调用失败（${res.status}）：${text.slice(0, 260)}`);
+      }
+
+      const data = await res.json();
+      const content = data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error('接口返回为空。');
+
+      const jsonText = extractJsonText(content);
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch (err) {
+        throw new Error(`JSON 解析失败：${err.message}`);
+      }
+      return normalizeResult(parsed);
+    }
+
+    function buildPayloadForTemplates(generated) {
+      const dateTag = new Date().toISOString().slice(0, 10);
+      const shortMain = safeFileName(generated.cover.main).slice(0, 26) || '自动生成';
+      return {
+        coverPayload: {
+          topText: generated.cover.top,
+          mainText: generated.cover.main,
+          bottomText: generated.cover.bottom,
+          fileNameRichu: `${shortMain}-${dateTag}-日富封面.png`,
+          fileNameBanxia: `${shortMain}-${dateTag}-半夏封面.png`
+        },
+        banxiaRaw: buildBanxiaRaw(generated.body_pages),
+        richuRaw: buildRichuRaw(generated.body_pages)
+      };
+    }
+
+    async function syncToTemplates({ download }) {
+      if (!state.generated) throw new Error('还没有可同步的内容，请先生成。');
+
+      const coverTemplates = selectedCoverTemplates();
+      const bodyTemplate = selectedBodyTemplate();
+      await waitForTemplates({ cover: coverTemplates, body: [bodyTemplate] });
+
+      const payload = buildPayloadForTemplates(state.generated);
+      state.banxiaRaw = payload.banxiaRaw;
+      state.richuRaw = payload.richuRaw;
+      els.banxiaRawOutput.value = payload.banxiaRaw;
+      els.richuRawOutput.value = payload.richuRaw;
+
+      for (const template of coverTemplates) {
+        postToCover(template, 'cover:setText', {
+          topText: payload.coverPayload.topText,
+          mainText: payload.coverPayload.mainText,
+          bottomText: payload.coverPayload.bottomText,
+          fileName: template === 'richu' ? payload.coverPayload.fileNameRichu : payload.coverPayload.fileNameBanxia
+        });
+      }
+
+      const raw = bodyTemplate === 'richu' ? payload.richuRaw : payload.banxiaRaw;
+      postToBody(bodyTemplate, 'body:setRaw', { rawText: raw });
+      postToBody(bodyTemplate, 'body:render', { rawText: raw });
+
+      if (download) {
+        for (const template of coverTemplates) {
+          postToCover(template, 'cover:download', {
+            topText: payload.coverPayload.topText,
+            mainText: payload.coverPayload.mainText,
+            bottomText: payload.coverPayload.bottomText,
+            fileName: template === 'richu' ? payload.coverPayload.fileNameRichu : payload.coverPayload.fileNameBanxia
+          });
+          await new Promise(resolve => setTimeout(resolve, 120));
+        }
+
+        postToBody(bodyTemplate, 'body:downloadAll', { rawText: raw });
+      }
+    }
+
+    async function runGenerateOnly() {
+      const topic = (els.topicInput.value || '').trim();
+      if (!topic) {
+        setStatus('请先输入选题。', 'warn');
+        els.topicInput.focus();
+        return;
+      }
+
+      const bodyPageCount = Math.max(6, Math.min(8, Number(els.bodyPageCount.value || 7)));
+
+      try {
+        setBusy(true);
+        setStatus('正在调用模型生成内容，请稍等...');
+        const generated = await requestGeneration(topic, bodyPageCount);
+        state.generated = generated;
+        els.outlineOutput.value = JSON.stringify(generated, null, 2);
+
+        const payload = buildPayloadForTemplates(generated);
+        state.banxiaRaw = payload.banxiaRaw;
+        state.richuRaw = payload.richuRaw;
+        els.banxiaRawOutput.value = payload.banxiaRaw;
+        els.richuRawOutput.value = payload.richuRaw;
+
+        setStatus('内容生成完成，可以先“同步到模板预览”，也可以直接“一键生成并下载”。', 'good');
+      } catch (err) {
+        setStatus(`生成失败：${err.message}`, 'warn');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function runGenerateAndDownload() {
+      await runGenerateOnly();
+      if (!state.generated) return;
+      try {
+        setBusy(true);
+        setStatus('正在同步模板并触发下载...');
+        await syncToTemplates({ download: true });
+        setStatus('已触发下载：封面 + 内页。若浏览器拦截下载，请允许批量下载后重试。', 'good');
+      } catch (err) {
+        setStatus(`下载阶段失败：${err.message}`, 'warn');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function runSyncPreview() {
+      if (!state.generated) {
+        setStatus('请先生成内容。', 'warn');
+        return;
+      }
+      try {
+        setBusy(true);
+        setStatus('正在同步到模板预览...');
+        await syncToTemplates({ download: false });
+        setStatus('已同步到封面和内页模板。', 'good');
+      } catch (err) {
+        setStatus(`同步失败：${err.message}`, 'warn');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    window.addEventListener('message', event => {
+      const data = event && event.data;
+      if (!data || typeof data !== 'object') return;
+
+      if (data.type === 'cover:ready' && (data.template === 'richu' || data.template === 'banxia')) {
+        ready.cover[data.template] = true;
+        updateReadyPills();
+        return;
+      }
+
+      if (data.type === 'body:ready' && (data.template === 'richu' || data.template === 'banxia')) {
+        ready.body[data.template] = true;
+        updateReadyPills();
+      }
+    });
+
+    els.generateBtn.addEventListener('click', runGenerateOnly);
+    els.generateAndDownloadBtn.addEventListener('click', runGenerateAndDownload);
+    els.syncBtn.addEventListener('click', runSyncPreview);
+    els.presetOllamaBtn.addEventListener('click', applyOllamaPreset);
+
+    loadPromptReferences().catch(() => {});
+    updateReadyPills();
+    setBusy(false);
+  </script>
+</body>
+</html>

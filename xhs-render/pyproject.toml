@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xhs-render"
+version = "1.0.0"
+description = "小红书图文本地批量排版工具 — 纯 Python 命令行/网页工具，用 JSON 批量渲染小红书图文卡片"
+requires-python = ">=3.9"
+dependencies = [
+    "Pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = []
+
+[project.scripts]
+xhs-render = "render:main"
+xhs-render-cli = "easy_render_cli:main"
+xhs-render-web = "web_ui:main"

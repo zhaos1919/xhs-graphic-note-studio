@@ -11,6 +11,11 @@
       "permanent": false
     },
     {
+      "source": "/studio/auto",
+      "destination": "/web/studio/auto.html",
+      "permanent": false
+    },
+    {
       "source": "/cover",
       "destination": "/web/studio/simple.html",
       "permanent": false

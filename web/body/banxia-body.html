@@ -145,27 +145,19 @@
       bodySize: 43,
       bodyLineHeight: 59,
       itemGap: 38,
+      compareInnerGap: 12,
+      compareGroupGap: 59,
       textColor: '#2b2620',
       maxItemsPerPage: 8
     };
 
     const exampleText = `第 2 页
-页标题：初见式重逢｜一眼万年的宿命感描写
-她抬眼的瞬间，就从逆光而来的剪影里，认出了那个刻在心底的人
-人声鼎沸的走廊里，她只一眼，就锁定了人群中那个熟悉又陌生的身影
-隔着满室喧嚣，她的目光越过无数人，猝不及防撞进了那双阔别多年的眼眸
-晚风卷着夕阳的光漫进来，他逆着光走来，她只看了个轮廓，心跳就骤然失序
-车水马龙的街头，她隔着斑马线，一眼就认出了那个多年未见的背影
-她垂着眼翻书，余光扫过门口的身影，指尖猛地一顿，连呼吸都忘了放轻
-满堂宾客的喧闹里，她的目光只追着那道身影，时隔多年，还是一眼就认了出来
-雨幕模糊了视线，可他撑伞走来的样子，她只看了一眼，就红了眼眶
-
-第 3 页
-页标题：久别重逢｜女主视角的情绪拉扯描写
-她没说话，只静静抬眸望着他，当年的少年褪去了青涩，眉眼间只剩洗练的沉稳
-她凝着他的眉眼，记忆里的少年和眼前的男人慢慢重叠，又在细微处全然不同
-她看着他，指尖微微蜷缩，当年张扬锋利的少年，如今只剩一身温和的疏离
-她的目光扫过他的轮廓，时隔多年，他还是她记忆里的样子，又好像完全不是了`;
+页标题：重逢情绪描写（自动识别示例）
+普通写法：她看见他，心里很难受。优化写法：她隔着人群看见他时，指尖悄悄蜷紧，连呼吸都短了一拍。
+普通：她不想说话。优化：她张了张口，最后只是垂下眼，把那句“好久不见”咽回喉咙里。
+【动作】她攥着书页的手指一点点发白，眼神却始终没有躲开
+她从喧闹的人群里一眼认出他，像多年以前那样，毫无征兆地心跳失序
+她想过无数次重逢的场面，真正见到他时，反而一句话都想不起来`;
 
     const bgFile = document.getElementById('bgFile');
     const fontRegularFile = document.getElementById('fontRegularFile');
@@ -180,6 +172,7 @@
     const thumbs = document.getElementById('thumbs');
     const pageSelect = document.getElementById('pageSelect');
     const previewCtx = previewCanvas.getContext('2d');
+    const BODY_TEMPLATE_ID = 'banxia';
 
     let backgroundImage = null;
     let renderedPages = [];
@@ -189,8 +182,20 @@
 
     function setStatus(text){ statusEl.textContent = text; }
 
-    function getTitleFont(){ return `700 ${CONFIG.titleSize}px ${titleFontFamily}`; }
-    function getBodyFont(){ return `400 ${CONFIG.bodySize}px ${bodyFontFamily}`; }
+    function setFontByStyle(ctx, styleKey){
+      if(styleKey === 'title'){
+        ctx.font = `700 ${CONFIG.titleSize}px ${titleFontFamily}`;
+      }else if(styleKey === 'label'){
+        ctx.font = `700 ${CONFIG.bodySize}px ${titleFontFamily}`;
+      }else{
+        ctx.font = `400 ${CONFIG.bodySize}px ${bodyFontFamily}`;
+      }
+    }
+
+    function measureText(ctx, text, styleKey){
+      setFontByStyle(ctx, styleKey);
+      return ctx.measureText(text).width;
+    }
 
     async function loadLocalFont(file, familyName) {
       const url = URL.createObjectURL(file);
@@ -210,11 +215,11 @@
       const pages = [];
       let current = null;
 
-      for(let raw of lines){
+      for(const raw of lines){
         const line = raw.trim();
         if(!line) continue;
 
-        const pageMatch = line.match(/^第\s*(\d+)\s*页$/);
+        const pageMatch = line.match(/^第\s*(\d+)\s*页(?:[-_]\d+)?$/);
         if(pageMatch){
           if(current) pages.push(current);
           current = { page_no: Number(pageMatch[1]), title: '', items: [] };
@@ -235,23 +240,21 @@
       }
 
       if(current) pages.push(current);
-
       if(!pages.length){
         throw new Error('没有识别到有效内容。请按“第 2 页 / 页标题：xxx / 每行一条正文”的格式粘贴。');
       }
-
       for(const p of pages){
         if(!p.title) throw new Error('有页面缺少“页标题：”这一行。');
       }
       return pages;
     }
 
-    function wrapTextByPixel(ctx, text, maxWidth){
+    function wrapTextByPixel(ctx, text, maxWidth, styleKey){
       const lines = [];
       let current = '';
-      for(const ch of String(text)){
+      for(const ch of String(text || '')){
         const test = current + ch;
-        const width = ctx.measureText(test).width;
+        const width = measureText(ctx, test, styleKey);
         if(width <= maxWidth || !current){
           current = test;
         }else{
@@ -263,45 +266,238 @@
       return lines;
     }
 
-    function splitPageItems(title, items){
+    function wrapMixedRuns(ctx, runs, maxWidth){
+      const lines = [];
+      let currentLine = [];
+      let currentWidth = 0;
+
+      function pushLine(){
+        if(currentLine.length){
+          lines.push(currentLine);
+          currentLine = [];
+          currentWidth = 0;
+        }
+      }
+
+      for(const run of runs){
+        const style = run.style || 'body';
+        const text = String(run.text || '');
+        if(!text) continue;
+
+        for(const ch of text){
+          const chWidth = measureText(ctx, ch, style);
+          if(currentWidth + chWidth > maxWidth && currentLine.length){
+            pushLine();
+          }
+
+          const last = currentLine[currentLine.length - 1];
+          if(last && last.style === style){
+            last.text += ch;
+          }else{
+            currentLine.push({ text: ch, style });
+          }
+          currentWidth += chWidth;
+        }
+      }
+      pushLine();
+      return lines;
+    }
+
+    function drawMixedLine(ctx, line, x, y){
+      let currentX = x;
+      for(const seg of line){
+        setFontByStyle(ctx, seg.style);
+        ctx.fillText(seg.text, currentX, y);
+        currentX += ctx.measureText(seg.text).width;
+      }
+    }
+
+    function normalizeCompareLabel(label){
+      return String(label || '').replace(/[：:]$/, '') + '：';
+    }
+
+    function parseInlineCompare(line){
+      const normalMatch = line.match(/普通(?:写法)?[：:]/);
+      const optimizeMatch = line.match(/优化(?:写法)?[：:]/);
+      if(!normalMatch || !optimizeMatch) return null;
+
+      const normalIdx = line.indexOf(normalMatch[0]);
+      const optimizeIdx = line.indexOf(optimizeMatch[0], normalIdx + normalMatch[0].length);
+      if(normalIdx < 0 || optimizeIdx <= normalIdx) return null;
+
+      const normalText = line.slice(normalIdx + normalMatch[0].length, optimizeIdx).trim();
+      const optimizeText = line.slice(optimizeIdx + optimizeMatch[0].length).trim();
+      if(!normalText || !optimizeText) return null;
+
+      return {
+        type: 'compare',
+        normal: { label: normalizeCompareLabel(normalMatch[0]), text: normalText },
+        optimize: { label: normalizeCompareLabel(optimizeMatch[0]), text: optimizeText }
+      };
+    }
+
+    function parseSingleCompare(line, kind){
+      const reg = kind === 'normal'
+        ? /^(普通(?:写法)?)[：:]\s*(.+)$/
+        : /^(优化(?:写法)?)[：:]\s*(.+)$/;
+      const match = line.match(reg);
+      if(!match) return null;
+      return {
+        label: normalizeCompareLabel(match[1]),
+        text: match[2].trim()
+      };
+    }
+
+    function parseTagged(line){
+      const match = line.match(/^【([^】]+)】\s*(.*)$/);
+      if(!match) return null;
+      const tag = match[1].trim();
+      const text = match[2].trim();
+      if(!tag) return null;
+      return { type: 'tagged', tag, text };
+    }
+
+    function parseContentBlocks(items){
+      const lines = items.map(item => String(item || '').trim()).filter(Boolean);
+      const blocks = [];
+
+      for(let i = 0; i < lines.length; i++){
+        const line = lines[i];
+
+        const inlineCompare = parseInlineCompare(line);
+        if(inlineCompare){
+          blocks.push(inlineCompare);
+          continue;
+        }
+
+        const normalOnly = parseSingleCompare(line, 'normal');
+        if(normalOnly){
+          const optimizeOnly = lines[i + 1] ? parseSingleCompare(lines[i + 1], 'optimize') : null;
+          if(optimizeOnly){
+            blocks.push({
+              type: 'compare',
+              normal: normalOnly,
+              optimize: optimizeOnly
+            });
+            i += 1;
+            continue;
+          }
+        }
+
+        const tagged = parseTagged(line);
+        if(tagged){
+          blocks.push(tagged);
+          continue;
+        }
+
+        blocks.push({ type: 'plain', text: line });
+      }
+
+      return blocks;
+    }
+
+    function layoutBlock(ctx, block, serialNo, maxWidth){
+      if(block.type === 'compare'){
+        const normalRuns = [
+          { text: block.normal.label, style: 'label' },
+          { text: block.normal.text ? ` ${block.normal.text}` : '', style: 'body' }
+        ];
+        const optimizeRuns = [
+          { text: block.optimize.label, style: 'label' },
+          { text: block.optimize.text ? ` ${block.optimize.text}` : '', style: 'body' }
+        ];
+        const normalLines = wrapMixedRuns(ctx, normalRuns, maxWidth);
+        const optimizeLines = wrapMixedRuns(ctx, optimizeRuns, maxWidth);
+        const height =
+          normalLines.length * CONFIG.bodyLineHeight +
+          CONFIG.compareInnerGap +
+          optimizeLines.length * CONFIG.bodyLineHeight;
+        return { type: 'compare', normalLines, optimizeLines, height };
+      }
+
+      if(block.type === 'tagged'){
+        const runs = [
+          { text: '【', style: 'body' },
+          { text: block.tag, style: 'label' },
+          { text: '】', style: 'body' },
+          { text: block.text ? ` ${block.text}` : '', style: 'body' }
+        ];
+        const lines = wrapMixedRuns(ctx, runs, maxWidth);
+        return {
+          type: 'tagged',
+          lines,
+          height: lines.length * CONFIG.bodyLineHeight
+        };
+      }
+
+      const prefix = serialNo ? `${serialNo}. ` : '';
+      const runs = [
+        { text: prefix, style: 'body' },
+        { text: block.text || '', style: 'body' }
+      ];
+      const lines = wrapMixedRuns(ctx, runs, maxWidth);
+      return {
+        type: 'plain',
+        lines,
+        height: lines.length * CONFIG.bodyLineHeight
+      };
+    }
+
+    function blockGap(prevEntry){
+      if(!prevEntry) return 0;
+      if(prevEntry.type === 'compare') return CONFIG.compareGroupGap;
+      return CONFIG.itemGap;
+    }
+
+    function splitPageItems(title, blocks){
       const c = document.createElement('canvas');
       c.width = CONFIG.canvasWidth;
       c.height = CONFIG.canvasHeight;
       const ctx = c.getContext('2d');
 
       const maxWidth = CONFIG.canvasWidth - CONFIG.marginX * 2;
-      ctx.font = getTitleFont();
-      const titleLines = wrapTextByPixel(ctx, title, maxWidth);
-      const usedHeight = titleLines.length * CONFIG.titleLineHeight + CONFIG.titleGapAfter;
+      const titleLines = wrapTextByPixel(ctx, title, maxWidth, 'title');
+      const bodyStartY = CONFIG.topStart + titleLines.length * CONFIG.titleLineHeight + CONFIG.titleGapAfter;
       const usableBottom = CONFIG.canvasHeight - CONFIG.bottomMargin;
 
       const groups = [];
-      let currentItems = [];
-      let currentHeight = usedHeight;
+      let currentEntries = [];
+      let currentY = bodyStartY;
+      let currentCount = 0;
+      let plainSerial = 1;
+      let index = 0;
 
-      ctx.font = getBodyFont();
-      for(const item of items){
-        const itemLines = wrapTextByPixel(ctx, item, maxWidth);
-        const itemHeight = itemLines.length * CONFIG.bodyLineHeight;
-        const extraGap = currentItems.length === 0 ? 0 : CONFIG.itemGap;
+      while(index < blocks.length){
+        const block = blocks[index];
+        const entry = layoutBlock(ctx, block, block.type === 'plain' ? plainSerial : null, maxWidth);
+        const extraGap = currentEntries.length ? blockGap(currentEntries[currentEntries.length - 1]) : 0;
 
-        if(currentItems.length >= CONFIG.maxItemsPerPage){
-          groups.push({ title, items: currentItems.slice() });
-          currentItems = [item];
-          currentHeight = usedHeight + itemHeight;
+        const exceedCount = currentEntries.length > 0 && currentCount >= CONFIG.maxItemsPerPage;
+        const exceedHeight = currentEntries.length > 0 && (currentY + extraGap + entry.height > usableBottom);
+
+        if(exceedCount || exceedHeight){
+          groups.push({ title, titleLines, entries: currentEntries.slice() });
+          currentEntries = [];
+          currentY = bodyStartY;
+          currentCount = 0;
+          plainSerial = 1;
           continue;
         }
 
-        if(currentHeight + extraGap + itemHeight > usableBottom && currentItems.length > 0){
-          groups.push({ title, items: currentItems.slice() });
-          currentItems = [item];
-          currentHeight = usedHeight + itemHeight;
-        }else{
-          currentItems.push(item);
-          currentHeight += extraGap + itemHeight;
-        }
+        if(currentEntries.length) currentY += extraGap;
+        currentEntries.push(entry);
+        currentY += entry.height;
+        currentCount += 1;
+        if(block.type === 'plain') plainSerial += 1;
+        index += 1;
       }
-      if(currentItems.length) groups.push({ title, items: currentItems.slice() });
+
+      if(currentEntries.length){
+        groups.push({ title, titleLines, entries: currentEntries.slice() });
+      }
+      if(!groups.length){
+        groups.push({ title, titleLines, entries: [] });
+      }
       return groups;
     }
 
@@ -315,7 +511,7 @@
       ctx.fillRect(0,0,CONFIG.canvasWidth,CONFIG.canvasHeight);
     }
 
-    function renderOnePage(bgImg, title, items){
+    function renderOnePage(bgImg, titleLines, entries){
       const c = document.createElement('canvas');
       c.width = CONFIG.canvasWidth;
       c.height = CONFIG.canvasHeight;
@@ -327,28 +523,38 @@
         drawDefaultBackground(ctx);
       }
 
-      const maxWidth = CONFIG.canvasWidth - CONFIG.marginX * 2;
       let y = CONFIG.topStart;
       const x = CONFIG.marginX;
       ctx.fillStyle = CONFIG.textColor;
       ctx.textBaseline = 'top';
 
-      ctx.font = getTitleFont();
-      const titleLines = wrapTextByPixel(ctx, title, maxWidth);
       for(const line of titleLines){
+        setFontByStyle(ctx, 'title');
         ctx.fillText(line, x, y);
         y += CONFIG.titleLineHeight;
       }
       y += CONFIG.titleGapAfter;
 
-      ctx.font = getBodyFont();
-      items.forEach((item, idx) => {
-        const lines = wrapTextByPixel(ctx, item, maxWidth);
-        for(const line of lines){
-          ctx.fillText(line, x, y);
+      entries.forEach((entry, idx) => {
+        if(idx > 0) y += blockGap(entries[idx - 1]);
+
+        if(entry.type === 'compare'){
+          for(const line of entry.normalLines){
+            drawMixedLine(ctx, line, x, y);
+            y += CONFIG.bodyLineHeight;
+          }
+          y += CONFIG.compareInnerGap;
+          for(const line of entry.optimizeLines){
+            drawMixedLine(ctx, line, x, y);
+            y += CONFIG.bodyLineHeight;
+          }
+          return;
+        }
+
+        for(const line of entry.lines){
+          drawMixedLine(ctx, line, x, y);
           y += CONFIG.bodyLineHeight;
         }
-        if(idx !== items.length - 1) y += CONFIG.itemGap;
       });
 
       return c;
@@ -395,6 +601,57 @@
       a.remove();
     }
 
+    async function downloadAllRenderedPages(){
+      if(!renderedPages.length) return;
+      for(let i = 0; i < renderedPages.length; i++){
+        const page = renderedPages[i];
+        downloadCanvas(page.canvas, page.name);
+        await new Promise(r => setTimeout(r, 250));
+      }
+    }
+
+    function applyIncomingRawText(raw){
+      const text = String(raw || '').replace(/\r/g, '').trim();
+      if(!text) return;
+      rawInput.value = text;
+      setStatus('已接收外部正文内容。');
+    }
+
+    function notifyParentReady(){
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage({ type: 'body:ready', template: BODY_TEMPLATE_ID }, '*');
+      }
+    }
+
+    function setupMessageBridge(){
+      window.addEventListener('message', async (event) => {
+        const data = event && event.data;
+        if(!data || typeof data !== 'object') return;
+        if(data.template && data.template !== 'all' && data.template !== BODY_TEMPLATE_ID) return;
+
+        try{
+          if(data.type === 'body:setRaw'){
+            if(typeof data.rawText === 'string') applyIncomingRawText(data.rawText);
+            return;
+          }
+
+          if(data.type === 'body:render'){
+            if(typeof data.rawText === 'string') applyIncomingRawText(data.rawText);
+            await renderAll();
+            return;
+          }
+
+          if(data.type === 'body:downloadAll'){
+            if(typeof data.rawText === 'string') applyIncomingRawText(data.rawText);
+            await renderAll();
+            await downloadAllRenderedPages();
+          }
+        }catch(err){
+          setStatus('消息处理失败：' + err.message);
+        }
+      });
+    }
+
     async function prepareFonts(){
       let info = [];
       if(fontRegularFile.files[0]){
@@ -415,6 +672,16 @@
       return info;
     }
 
+    function buildPageName(pageNo, title, index){
+      if(pageNo !== ''){
+        if(index === 0) return `第${pageNo}页.png`;
+        return `第${pageNo}页-${index + 1}.png`;
+      }
+      const safeTitle = String(title || '正文').slice(0, 12) || '正文';
+      if(index === 0) return `${safeTitle}.png`;
+      return `${safeTitle}-${index + 1}.png`;
+    }
+
     async function renderAll(){
       try{
         const raw = rawInput.value.trim();
@@ -427,18 +694,16 @@
         for(const page of pages){
           const pageNo = page.page_no ?? '';
           const title = page.title;
-          const items = page.items || [];
-          const subPages = splitPageItems(title, items);
+          const blocks = parseContentBlocks(page.items || []);
+          const subPages = splitPageItems(title, blocks);
 
-          if(subPages.length === 1){
-            const name = pageNo !== '' ? `第${pageNo}页.png` : `${title.slice(0,12)}.png`;
-            all.push({ name, canvas: renderOnePage(backgroundImage, title, items) });
-          }else{
-            subPages.forEach((sp, idx) => {
-              const name = pageNo !== '' ? `第${pageNo}页_${idx+1}.png` : `${title.slice(0,12)}_${idx+1}.png`;
-              all.push({ name, canvas: renderOnePage(backgroundImage, sp.title, sp.items) });
+          subPages.forEach((sp, idx) => {
+            const name = buildPageName(pageNo, title, idx);
+            all.push({
+              name,
+              canvas: renderOnePage(backgroundImage, sp.titleLines, sp.entries)
             });
-          }
+          });
         }
 
         renderedPages = all;
@@ -480,12 +745,7 @@
       downloadCanvas(page.canvas, page.name);
     });
     downloadAllBtn.addEventListener('click', async () => {
-      if(!renderedPages.length) return;
-      for(let i=0;i<renderedPages.length;i++){
-        const page = renderedPages[i];
-        downloadCanvas(page.canvas, page.name);
-        await new Promise(r => setTimeout(r, 250));
-      }
+      await downloadAllRenderedPages();
     });
 
     loadExample();
@@ -494,6 +754,8 @@
     previewCtx.fillStyle = '#9ca3af';
     previewCtx.font = '16px Microsoft YaHei';
     previewCtx.fillText('这里会显示渲染预览', 40, 40);
+    setupMessageBridge();
+    notifyParentReady();
   </script>
 </body>
 </html>

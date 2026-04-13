@@ -177,6 +177,7 @@ const logBox = document.getElementById("logBox");
 const statusText = document.getElementById("statusText");
 const bgUpload = document.getElementById("bgUpload");
 const rawText = document.getElementById("rawText");
+const BODY_TEMPLATE_ID = "richu";
 
 let pages = [];
 let currentPageIndex = 0;
@@ -259,41 +260,52 @@ function parseRawTextToPages(text) {
     const title = line.slice(0, idx + 1).trim();
     const body = line.slice(idx + 1).trim();
 
-    if (!title || title.length > 24) return null;
+    if (!title || title.length > 28) return null;
     if (/[。！？；]$/.test(title)) return null;
     return { title, body };
   }
 
-  const result = [];
-  let currentLines = [];
+  function splitInlineCompare(line) {
+    const normalMatch = line.match(/普通(?:写法)?[：:]/);
+    const optimizeMatch = line.match(/优化(?:写法)?[：:]/);
+    if (!normalMatch || !optimizeMatch) return null;
 
-  function flushChunk(chunkLines) {
+    const normalIdx = line.indexOf(normalMatch[0]);
+    const optimizeIdx = line.indexOf(optimizeMatch[0], normalIdx + normalMatch[0].length);
+    if (normalIdx < 0 || optimizeIdx <= normalIdx) return null;
+
+    const normalText = line.slice(normalIdx + normalMatch[0].length, optimizeIdx).trim();
+    const optimizeText = line.slice(optimizeIdx + optimizeMatch[0].length).trim();
+    if (!normalText || !optimizeText) return null;
+
+    const normalTitle = normalMatch[0].replace(/[：:]$/, "") + "：";
+    const optimizeTitle = optimizeMatch[0].replace(/[：:]$/, "") + "：";
+    return [
+      { title: normalTitle, body: normalText },
+      { title: optimizeTitle, body: optimizeText }
+    ];
+  }
+
+  const result = [];
+  let currentChunk = [];
+
+  function flushChunk(chunkLines){
     const usable = chunkLines.map(s => s.trim()).filter(Boolean);
     if (!usable.length) return;
 
     const heading = usable[0];
     const items = [];
-    let pendingPlain = [];
-
-    function flushPendingPlain() {
-      if (!pendingPlain.length) return;
-      items.push({ title: "", body: pendingPlain.join("") });
-      pendingPlain = [];
-    }
-
-    for (let i = 1; i < usable.length; i++) {
+    for(let i = 1; i < usable.length; i++){
       const line = usable[i];
-      const tb = splitTitleBody(line);
-
-      if (tb) {
-        flushPendingPlain();
-        items.push({ title: tb.title, body: tb.body });
-      } else {
-        pendingPlain.push(line);
+      const comparePair = splitInlineCompare(line);
+      if (comparePair) {
+        items.push(comparePair[0], comparePair[1]);
+        continue;
       }
+      const tb = splitTitleBody(line);
+      if (tb) items.push({ title: tb.title, body: tb.body });
+      else items.push({ title: "", body: line });
     }
-
-    flushPendingPlain();
 
     if (!items.length) {
       items.push({ title: "", body: "" });
@@ -302,56 +314,39 @@ function parseRawTextToPages(text) {
     result.push({ heading, items });
   }
 
-  for (const line of lines) {
-    if (isPageMarker(line)) {
-      if (currentLines.length) flushChunk(currentLines);
-      currentLines = [];
+  for(const line of lines){
+    if(isPageMarker(line)){
+      if(currentChunk.length) flushChunk(currentChunk);
+      currentChunk = [];
       continue;
     }
-    currentLines.push(line);
+    currentChunk.push(line);
   }
 
-  if (currentLines.length) {
-    flushChunk(currentLines);
+  if(currentChunk.length){
+    flushChunk(currentChunk);
   }
 
-  if (!result.length) {
-    const usable = normalized.split("\n").map(s => s.trim()).filter(Boolean);
-    if (!usable.length) throw new Error("未解析出任何页面，请检查格式。");
-    const heading = usable[0];
-    const items = [];
-    let pendingPlain = [];
-
-    function flushPendingPlainFallback() {
-      if (!pendingPlain.length) return;
-      items.push({ title: "", body: pendingPlain.join("") });
-      pendingPlain = [];
-    }
-
-    for (let i = 1; i < usable.length; i++) {
-      const tb = splitTitleBody(usable[i]);
-      if (tb) {
-        flushPendingPlainFallback();
-        items.push({ title: tb.title, body: tb.body });
-      } else {
-        pendingPlain.push(usable[i]);
-      }
-    }
-
-    flushPendingPlainFallback();
-    if (!items.length) items.push({ title: "", body: "" });
-    result.push({ heading, items });
+  if(!result.length){
+    flushChunk(lines);
   }
 
   return result;
+}
+
+function getStyleConfig(key, settings) {
+  if (key === "heading") return { fontStyle: "700", fontSize: settings.headingSize };
+  if (key === "item_title" || key === "label") return { fontStyle: "700", fontSize: settings.itemTitleSize };
+  return { fontStyle: "400", fontSize: settings.bodySize };
 }
 
 function setFont(style, size) {
   ctx.font = `${style} ${size}px ${fontStack()}`;
 }
 
-function measureWidth(text, style, size) {
-  setFont(style, size);
+function measureWidth(text, key, settings) {
+  const styleCfg = getStyleConfig(key, settings);
+  setFont(styleCfg.fontStyle, styleCfg.fontSize);
   return ctx.measureText(text).width;
 }
 
@@ -369,59 +364,142 @@ function wrapMixedRuns(runs, settings) {
     }
   }
 
-  function styleForKey(key) {
-    if (key === "item_title") return {fontStyle:"700", fontSize:settings.itemTitleSize};
-    return {fontStyle:"400", fontSize:settings.bodySize};
-  }
-
   for (const run of runs) {
-    const cfg = styleForKey(run.key);
-    let buffer = "";
-    for (const ch of run.text) {
-      const test = buffer + ch;
-      const testW = measureWidth(test, cfg.fontStyle, cfg.fontSize);
-      if (currentWidth + testW <= maxWidth) {
-        buffer = test;
+    const text = String(run.text || "");
+    if (!text) continue;
+
+    for (const ch of text) {
+      const cw = measureWidth(ch, run.key, settings);
+      if (currentWidth + cw > maxWidth && current.length) pushLine();
+
+      const last = current[current.length - 1];
+      if (last && last.key === run.key) {
+        last.text += ch;
       } else {
-        if (buffer) {
-          current.push({text:buffer, key:run.key});
-          currentWidth += measureWidth(buffer, cfg.fontStyle, cfg.fontSize);
-          buffer = "";
-        }
-        const cw = measureWidth(ch, cfg.fontStyle, cfg.fontSize);
-        if (currentWidth + cw > maxWidth && current.length) pushLine();
-        buffer = ch;
+        current.push({ text: ch, key: run.key });
       }
-    }
-    if (buffer) {
-      const bw = measureWidth(buffer, cfg.fontStyle, cfg.fontSize);
-      if (currentWidth + bw > maxWidth && current.length) pushLine();
-      current.push({text:buffer, key:run.key});
-      currentWidth += bw;
+      currentWidth += cw;
     }
   }
   if (current.length) lines.push(current);
   return lines;
 }
 
-function measurePage(page, settings) {
-  let y = settings.topY;
-  y += settings.headingLineHeight;
-  y += settings.groupGap;
-  const wrappedItems = [];
+function lineHeightForLine(line, settings) {
+  if (line.some(seg => seg.key === "heading")) return settings.headingLineHeight;
+  const onlyStrong = line.length > 0 && line.every(seg => seg.key === "item_title" || seg.key === "label");
+  if (onlyStrong) return settings.itemTitleLineHeight;
+  return settings.bodyLineHeight;
+}
 
-  for (let i = 0; i < page.items.length; i++) {
-    const item = page.items[i];
-    const lines = wrapMixedRuns([
-      {text:item.title, key:"item_title"},
-      {text:item.body, key:"body"}
-    ], settings);
-    wrappedItems.push(lines);
-    y += lines.length * settings.bodyLineHeight;
-    if (i < page.items.length - 1) y += settings.itemGap;
+function linesHeight(lines, settings) {
+  return lines.reduce((sum, line) => sum + lineHeightForLine(line, settings), 0);
+}
+
+function normalizeCompareLabel(raw) {
+  return String(raw || "").replace(/[：:]$/, "") + "：";
+}
+
+function classifyCompareItem(item) {
+  const title = String(item.title || "").trim();
+  const body = String(item.body || "").trim();
+  const titleOnlyMatch = title.match(/^(普通(?:写法)?|优化(?:写法)?)[：:]?$/);
+  if (titleOnlyMatch) {
+    const label = normalizeCompareLabel(titleOnlyMatch[1]);
+    const kind = label.startsWith("普通") ? "normal" : "optimize";
+    return { isCompare: true, kind, label, bodyText: body };
   }
 
-  return { finalY:y, bottomMargin:settings.height - y, wrappedItems };
+  if (!title) {
+    const bodyMatch = body.match(/^(普通(?:写法)?|优化(?:写法)?)[：:]\s*(.*)$/);
+    if (bodyMatch) {
+      const label = normalizeCompareLabel(bodyMatch[1]);
+      const kind = label.startsWith("普通") ? "normal" : "optimize";
+      return { isCompare: true, kind, label, bodyText: bodyMatch[2].trim() };
+    }
+  }
+
+  return { isCompare: false, kind: null, label: "", bodyText: body };
+}
+
+function splitAdaptBody(bodyText) {
+  const text = String(bodyText || "");
+  const idx = text.indexOf("适配");
+  if (idx < 0) return { beforeAdapt: text, adaptPart: "" };
+  return {
+    beforeAdapt: text.slice(0, idx).trimEnd(),
+    adaptPart: text.slice(idx).trim()
+  };
+}
+
+function buildItemLayout(item, settings) {
+  const compareMeta = classifyCompareItem(item);
+  if (compareMeta.isCompare) {
+    const runs = [
+      { text: compareMeta.label, key: "label" },
+      { text: compareMeta.bodyText ? ` ${compareMeta.bodyText}` : "", key: "body" }
+    ];
+    return {
+      lines: wrapMixedRuns(runs, settings),
+      meta: { isCompare: true, kind: compareMeta.kind, hasAdapt: false }
+    };
+  }
+
+  const titleText = String(item.title || "");
+  const { beforeAdapt, adaptPart } = splitAdaptBody(item.body || "");
+  const lines = [];
+
+  const firstRuns = [];
+  if (titleText) firstRuns.push({ text: titleText, key: "item_title" });
+  if (beforeAdapt) firstRuns.push({ text: beforeAdapt, key: "body" });
+  if (firstRuns.length) {
+    lines.push(...wrapMixedRuns(firstRuns, settings));
+  }
+
+  if (adaptPart) {
+    lines.push(...wrapMixedRuns([{ text: adaptPart, key: "body" }], settings));
+  }
+
+  if (!lines.length) {
+    lines.push(...wrapMixedRuns([{ text: String(item.body || ""), key: "body" }], settings));
+  }
+
+  return {
+    lines,
+    meta: { isCompare: false, kind: null, hasAdapt: Boolean(adaptPart) }
+  };
+}
+
+function gapAfterItem(currentMeta, nextMeta, settings) {
+  if (!nextMeta) return 0;
+  if (currentMeta.isCompare) {
+    if (currentMeta.kind === "normal" && nextMeta.isCompare && nextMeta.kind === "optimize") {
+      return settings.itemGap;
+    }
+    return settings.bodyLineHeight;
+  }
+  if (currentMeta.hasAdapt) return settings.bodyLineHeight;
+  return settings.itemGap;
+}
+
+function measurePage(page, settings) {
+  let y = settings.topY;
+  const headingLines = wrapMixedRuns([{ text: page.heading, key: "heading" }], settings);
+  y += linesHeight(headingLines, settings);
+  y += settings.groupGap;
+  const wrappedItems = page.items.map(item => buildItemLayout(item, settings));
+
+  for (let i = 0; i < wrappedItems.length; i++) {
+    y += linesHeight(wrappedItems[i].lines, settings);
+    y += gapAfterItem(wrappedItems[i].meta, wrappedItems[i + 1] ? wrappedItems[i + 1].meta : null, settings);
+  }
+
+  return {
+    finalY: y,
+    bottomMargin: settings.height - y,
+    headingLines,
+    wrappedItems
+  };
 }
 
 function fitPage(page, base) {
@@ -430,9 +508,16 @@ function fitPage(page, base) {
 
   while (
     result.finalY > s.height - s.bottomY &&
-    (s.bodyLineHeight > 48 || s.headingLineHeight > 48 || s.itemGap > 0 || s.groupGap > 0)
+    (
+      s.bodyLineHeight > 48 ||
+      s.itemTitleLineHeight > 48 ||
+      s.headingLineHeight > 48 ||
+      s.itemGap > 0 ||
+      s.groupGap > 0
+    )
   ) {
     if (s.bodyLineHeight > 48) s.bodyLineHeight -= 2;
+    if (s.itemTitleLineHeight > 48) s.itemTitleLineHeight -= 2;
     if (s.headingLineHeight > 48) s.headingLineHeight -= 2;
     if (s.itemGap > 0) s.itemGap -= 1;
     if (s.groupGap > 0) s.groupGap -= 1;
@@ -455,9 +540,8 @@ function fitPage(page, base) {
 function drawLine(line, x, y, settings) {
   let cx = x;
   for (const seg of line) {
-    const weight = seg.key === "item_title" ? "700" : "400";
-    const size = seg.key === "item_title" ? settings.itemTitleSize : settings.bodySize;
-    setFont(weight, size);
+    const styleCfg = getStyleConfig(seg.key, settings);
+    setFont(styleCfg.fontStyle, styleCfg.fontSize);
     ctx.fillText(seg.text, cx, y);
     cx += ctx.measureText(seg.text).width;
   }
@@ -483,23 +567,26 @@ function renderCurrentPage() {
   ctx.textBaseline = "top";
 
   let y = fitted.settings.topY;
-  setFont("700", fitted.settings.headingSize);
-  ctx.fillText(page.heading, fitted.settings.marginX, y);
-  y += fitted.settings.headingLineHeight;
+  for (const line of fitted.headingLines) {
+    drawLine(line, fitted.settings.marginX, y, fitted.settings);
+    y += lineHeightForLine(line, fitted.settings);
+  }
   y += fitted.settings.groupGap;
 
   for (let i = 0; i < fitted.wrappedItems.length; i++) {
-    for (const line of fitted.wrappedItems[i]) {
+    const current = fitted.wrappedItems[i];
+    const next = fitted.wrappedItems[i + 1] || null;
+    for (const line of current.lines) {
       drawLine(line, fitted.settings.marginX, y, fitted.settings);
-      y += fitted.settings.bodyLineHeight;
+      y += lineHeightForLine(line, fitted.settings);
     }
-    if (i < fitted.wrappedItems.length - 1) y += fitted.settings.itemGap;
+    y += gapAfterItem(current.meta, next ? next.meta : null, fitted.settings);
   }
 
   statusText.textContent = `第 ${currentPageIndex+1} 页已渲染`;
   logBox.textContent = [
     `final y = ${y}`,
-    `bottom_margin = ${base.height - y}`,
+    `bottom_margin = ${fitted.settings.height - y}`,
     "",
     "实际参数：",
     JSON.stringify(fitted.settings, null, 2)
@@ -511,6 +598,69 @@ function downloadCanvas(filename) {
   a.href = canvas.toDataURL("image/png");
   a.download = filename;
   a.click();
+}
+
+function applyIncomingRawText(raw) {
+  const text = String(raw || "").replace(/\r/g, "").trim();
+  if (!text) return;
+  rawText.value = text;
+  pages = parseRawTextToPages(text);
+  currentPageIndex = 0;
+  resetPageSelect();
+  syncTextareaFromPage();
+  renderCurrentPage();
+  statusText.textContent = `已接收外部内容，共 ${pages.length} 页`;
+}
+
+async function runDownloadAllFromCurrentState() {
+  try {
+    saveTextareaToPage();
+  } catch (err) {
+    statusText.textContent = "JSON 有误";
+    logBox.textContent = String(err.message || err);
+    return;
+  }
+  for (let i = 0; i < pages.length; i++) {
+    await renderPageToDownload(i);
+  }
+}
+
+function notifyParentReady() {
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage({ type: "body:ready", template: BODY_TEMPLATE_ID }, "*");
+  }
+}
+
+function setupMessageBridge() {
+  window.addEventListener("message", async (event) => {
+    const data = event && event.data;
+    if (!data || typeof data !== "object") return;
+    if (data.template && data.template !== "all" && data.template !== BODY_TEMPLATE_ID) return;
+
+    try {
+      if (data.type === "body:setRaw") {
+        if (typeof data.rawText === "string") applyIncomingRawText(data.rawText);
+        return;
+      }
+
+      if (data.type === "body:render") {
+        if (typeof data.rawText === "string") {
+          applyIncomingRawText(data.rawText);
+        } else {
+          renderCurrentPage();
+        }
+        return;
+      }
+
+      if (data.type === "body:downloadAll") {
+        if (typeof data.rawText === "string") applyIncomingRawText(data.rawText);
+        await runDownloadAllFromCurrentState();
+      }
+    } catch (err) {
+      statusText.textContent = "消息处理失败";
+      logBox.textContent = String(err.message || err);
+    }
+  });
 }
 
 async function renderPageToDownload(index) {
@@ -548,16 +698,7 @@ document.getElementById("downloadBtn").addEventListener("click", () => {
 });
 
 document.getElementById("downloadAllBtn").addEventListener("click", async () => {
-  try {
-    saveTextareaToPage();
-  } catch (err) {
-    statusText.textContent = "JSON 有误";
-    logBox.textContent = String(err.message || err);
-    return;
-  }
-  for (let i = 0; i < pages.length; i++) {
-    await renderPageToDownload(i);
-  }
+  await runDownloadAllFromCurrentState();
 });
 
 document.getElementById("exportJsonBtn").addEventListener("click", () => {
@@ -609,7 +750,10 @@ bgImage.onload = () => {
   resetPageSelect();
   syncTextareaFromPage();
   renderCurrentPage();
+  notifyParentReady();
 };
+
+setupMessageBridge();
 </script>
 </body>
 </html>

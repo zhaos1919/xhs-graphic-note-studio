@@ -1,0 +1,40 @@
+{
+  "qingfeng": {
+    "label": "清风",
+    "page_size": [1200, 1600],
+    "cover_size": [1000, 1300],
+    "background": "qingfeng_bg.jpg",
+    "text_color": "#2c3e50",
+    "page": {
+      "margin_x": 80,
+      "title_y": 100,
+      "title_size": 48,
+      "title_lh": 72,
+      "body_gap_after_title": 40,
+      "body_size": 42,
+      "body_lh": 65,
+      "list_gap": 12,
+      "tag_gap": 14,
+      "compare_pair_gap": 6,
+      "compare_group_gap": 70
+    },
+    "cover": {
+      "top_text": "高质量内容",
+      "top_size": 50,
+      "top_y": 300,
+      "top_align": "center",
+      "top_x": null,
+      "title_size": 110,
+      "title_min_size": 85,
+      "title_y": 620,
+      "title_max_width": 650,
+      "title_line_gap": 16,
+      "title_align": "center",
+      "bottom_text": "知识分享｜清新分享",
+      "bottom_size": 40,
+      "bottom_y": 1050,
+      "bottom_align": "center",
+      "bottom_x": null
+    }
+  }
+}
